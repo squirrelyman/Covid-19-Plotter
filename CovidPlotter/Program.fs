@@ -30,14 +30,16 @@ let main argv =
         |> Seq.collect(fun x -> x.Rows)
         |> Seq.toArray
 
-    let ny = data |> Seq.where(fun x -> x.``Province/State`` = "New York")
-    let nj = data |> Seq.where(fun x -> x.``Province/State`` = "New Jersey")
-    let nc = data |> Seq.where(fun x -> x.``Province/State`` = "North Carolina")
-    let it = data |> Seq.where(fun x -> x.``Country/Region`` = "Italy")
-    let de = data |> Seq.where(fun x -> x.``Country/Region`` = "Germany")
-    let sp = data |> Seq.where(fun x -> x.``Country/Region`` = "Spain")
-    let ir = data |> Seq.where(fun x -> x.``Country/Region`` = "Iran")
-    let uk = data |> Seq.where(fun x -> x.``Province/State`` = "United Kingdom")
+    let dataByLocation = [
+        ("New York", data |> Seq.where(fun x -> x.``Province/State`` = "New York"))
+        ("New Jersey", data |> Seq.where(fun x -> x.``Province/State`` = "New Jersey"))
+        ("North Carolina", data |> Seq.where(fun x -> x.``Province/State`` = "North Carolina"))
+        ("Italy", data |> Seq.where(fun x -> x.``Country/Region`` = "Italy"))
+        ("Germany", data |> Seq.where(fun x -> x.``Country/Region`` = "Germany"))
+        ("Spain", data |> Seq.where(fun x -> x.``Country/Region`` = "Spain"))
+        ("Iran", data |> Seq.where(fun x -> x.``Country/Region`` = "Iran"))
+        ("United Kingdom", data |> Seq.where(fun x -> x.``Province/State`` = "United Kingdom"))
+    ]
 
     let buildPlot (data: (float * int) seq) =
         Scatter(
@@ -65,10 +67,11 @@ let main argv =
                 )
         )
 
-    [ny; nj; nc; it; de; sp; ir; uk]
+    dataByLocation
+    |> List.map(fun (loc, data) -> data)
     |> List.map(casesSince100DayXY)
     |> Chart.Plot
-    |> Chart.WithLabels(["New York"; "New Jersey"; "North Carolina"; "Italy"; "Germany"; "Spain"; "Iran"; "United Kingdom"])
+    |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
     |> Chart.WithYTitle("Cases")
     |> Chart.WithOptions(layout)
     |> Chart.WithXTitle("Days since cases exceeded 100")
