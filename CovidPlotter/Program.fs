@@ -71,6 +71,8 @@ let main argv =
     |> Chart.WithLabels(["New York"; "New Jersey"; "North Carolina"; "Italy"; "Germany"; "Spain"; "Iran"; "United Kingdom"])
     |> Chart.WithYTitle("Cases")
     |> Chart.WithOptions(layout)
+    |> Chart.WithXTitle("Days since cases exceeded 100")
+    |> Chart.WithYTitle("Confirmed Cases")
     |> Chart.Show
 
     0 // return an integer exit code
