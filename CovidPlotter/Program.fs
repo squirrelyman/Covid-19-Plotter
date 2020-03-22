@@ -18,6 +18,29 @@ let filterNonMonotonic (s: ('a * int) seq) =
             then yield (t, num)
     ]
 
+let layoutLog =
+    Layout(
+        yaxis =
+            Yaxis(
+                ``type`` = "log",
+                autorange = true
+            )
+    )
+
+let layoutLogLog =
+    Layout(
+        xaxis =
+            Xaxis(
+                ``type`` = "log",
+                autorange = true
+            ),
+        yaxis =
+            Yaxis(
+                ``type`` = "log",
+                autorange = true
+            )
+    )
+
 [<EntryPoint>]
 let main argv =
     let data = 
@@ -60,24 +83,47 @@ let main argv =
         |> filterNonMonotonic
         |> buildPlot
 
-    let layout =
-        Layout(
-            yaxis =
-                Yaxis(
-                    ``type`` = "log",
-                    autorange = true
-                )
-        )
+    let deathsSince100DayXY (data: DailyData.Row seq) =
+        let dayOf100 = firstDayPast100 data
+        data
+        |> Seq.map(fun x -> ((float)(x.``Last Update`` - dayOf100).TotalHours / 24.0, x.Deaths))
+        |> Seq.where(fun (t, _) -> t >= 0.0)
+        |> Seq.where(fun (_, x) -> x > 0)
+        |> filterNonMonotonic
+        |> buildPlot
+
+    let deathsVsConfirmedXY (data: DailyData.Row seq) =
+        data
+        |> Seq.map(fun x -> (x.Confirmed, x.Deaths))
+        |> Seq.where(fun (c, d) -> c > 100 && d > 10)
+        |> Seq.map(fun (x, y) -> ((float)x, y))
+        |> buildPlot
 
     dataByLocation
-    |> List.map(fun (loc, data) -> data)
-    |> List.map(casesSince100DayXY)
+    |> List.map(fun (loc, data) -> casesSince100DayXY data)
     |> Chart.Plot
     |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
-    |> Chart.WithYTitle("Cases")
-    |> Chart.WithOptions(layout)
+    |> Chart.WithOptions(layoutLog)
     |> Chart.WithXTitle("Days since cases exceeded 100")
     |> Chart.WithYTitle("Confirmed Cases")
+    |> Chart.Show
+
+    dataByLocation
+    |> List.map(fun (loc, data) -> deathsSince100DayXY data)
+    |> Chart.Plot
+    |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
+    |> Chart.WithOptions(layoutLog)
+    |> Chart.WithXTitle("Days since cases exceeded 100")
+    |> Chart.WithYTitle("Deaths")
+    |> Chart.Show
+
+    dataByLocation
+    |> List.map(fun (loc, data) -> deathsVsConfirmedXY data)
+    |> Chart.Plot
+    |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
+    |> Chart.WithOptions(layoutLogLog)
+    |> Chart.WithXTitle("Confirmed Cases")
+    |> Chart.WithYTitle("Deaths")
     |> Chart.Show
 
     0 // return an integer exit code
