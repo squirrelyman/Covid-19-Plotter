@@ -39,6 +39,8 @@ let main argv =
         ("Spain", data |> Seq.where(fun x -> x.``Country/Region`` = "Spain"))
         ("Iran", data |> Seq.where(fun x -> x.``Country/Region`` = "Iran"))
         ("United Kingdom", data |> Seq.where(fun x -> x.``Province/State`` = "United Kingdom"))
+        ("India", data |> Seq.where(fun x -> x.``Country/Region`` = "India"))
+        ("South Korea", data |> Seq.where(fun x -> x.``Country/Region`` = "South Korea"))
     ]
 
     let buildPlot (data: (float * int) seq) =
