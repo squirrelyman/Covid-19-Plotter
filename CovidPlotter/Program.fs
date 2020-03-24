@@ -45,7 +45,7 @@ let filterNonMonotonic (s: (float * 'b) seq) : (float * 'b) list =
             then yield (t, num)
     ]
 
-let layoutLog =
+let layoutLog() =
     Layout(
         yaxis =
             Yaxis(
@@ -54,7 +54,7 @@ let layoutLog =
             )
     )
 
-let layoutLogLog =
+let layoutLogLog() =
     Layout(
         xaxis =
             Xaxis(
@@ -183,7 +183,7 @@ let main argv =
         |> List.map(fun (loc, data) -> casesSince100DayXY data)
         |> Chart.Plot
         |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
-        |> Chart.WithOptions(layoutLog)
+        |> Chart.WithLayout(layoutLog())
         |> Chart.WithXTitle("Days since cases exceeded 100")
         |> Chart.WithYTitle("Confirmed Cases")
 
@@ -191,7 +191,7 @@ let main argv =
         |> List.map(fun (loc, data) -> deathsSince100DayXY data)
         |> Chart.Plot
         |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
-        |> Chart.WithOptions(layoutLog)
+        |> Chart.WithLayout(layoutLog())
         |> Chart.WithXTitle("Days since cases exceeded 100")
         |> Chart.WithYTitle("Deaths")
 
@@ -199,7 +199,7 @@ let main argv =
         |> List.map(fun (loc, data) -> deathsVsConfirmedXY data)
         |> Chart.Plot
         |> Chart.WithLabels(dataByLocation |> List.map(fun (loc, data) -> loc))
-        |> Chart.WithOptions(layoutLogLog)
+        |> Chart.WithLayout(layoutLogLog())
         |> Chart.WithXTitle("Confirmed Cases")
         |> Chart.WithYTitle("Deaths")
     ] |> Chart.ShowAll
@@ -253,7 +253,7 @@ let main argv =
         |> Seq.map(buildPlot)
         |> Chart.Plot
         |> Chart.WithLabels(["Actual"; "Fit"])
-        |> Chart.WithOptions(layoutLog)
+        |> Chart.WithOptions(layoutLog())
         |> Chart.WithYTitle("Confirmed Cases")
         |> Chart.WithXTitle("time from present (days)")
         |> Chart.WithTitle(loc)
