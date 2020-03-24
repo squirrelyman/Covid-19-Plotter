@@ -7,7 +7,20 @@ open MathNet.Numerics.LinearAlgebra.Solvers
 
 let dataDir = "../../../../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/"
 
-type DailyData = CsvProvider<"../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/02-01-2020.csv">
+type CsvDailyData1 = CsvProvider<"../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/02-01-2020.csv">
+type CsvDailyData2 = CsvProvider<"../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/03-23-2020.csv">
+
+type DailyData =
+    {
+        county: string
+        province_state: string
+        country_region: string
+        file_date: DateTime
+        last_update: DateTime
+        confirmed: int
+        deaths: int
+        recovered: int
+    }
 
 let fitLog2ndOrder (data: (float * float) seq) =
     let mat = matrix ( data |> Seq.map(fun (t, x) -> [1.0; t; t*t]))
@@ -57,27 +70,80 @@ let layoutLogLog =
 
 [<EntryPoint>]
 let main argv =
+    let mapFileData (f: string) : DailyData seq =
+        match DateTime.Parse(Path.GetFileNameWithoutExtension(f)) with
+        | dt when dt < DateTime.Parse("02-01-2020") -> Seq.empty
+        | dt when dt < DateTime.Parse("03-23-2020") ->
+            (CsvDailyData1.Load f).Rows
+            |> Seq.map(fun row ->
+                {
+                    county = "total"
+                    province_state = row.``Province/State``
+                    country_region = row.``Country/Region``
+                    file_date = DateTime.Parse(Path.GetFileNameWithoutExtension(f))
+                    last_update = row.``Last Update``
+                    confirmed = row.Confirmed
+                    deaths = row.Deaths
+                    recovered = row.Recovered
+                })
+        | _ ->
+            (CsvDailyData2.Load f).Rows
+            |> Seq.map(fun row ->
+                {
+                    county = row.Admin2
+                    province_state = row.``Province_State``
+                    country_region = row.``Country_Region``
+                    file_date = DateTime.Parse(Path.GetFileNameWithoutExtension(f))
+                    last_update = row.``Last_Update``
+                    confirmed = row.Confirmed
+                    deaths = row.Deaths
+                    recovered = row.Recovered
+                })
+
+
     let data = 
         Directory.EnumerateFiles(dataDir)
-        |> Seq.where(fun x -> Path.GetFileName(x).StartsWith("01") = false && x.EndsWith(".csv"))
+        |> Seq.where(fun x -> Path.GetExtension(x) = ".csv")
         |> Seq.map(fun x ->
             printfn "%A" x
             x)
-        |> Seq.map(DailyData.Load)
-        |> Seq.collect(fun x -> x.Rows)
+        |> Seq.map(mapFileData)
+        |> Seq.collect(fun fileData ->
+        [
+            yield! fileData
+            yield!
+                fileData
+                |> Seq.where(fun x -> x.province_state <> "")
+                |> Seq.map(fun x -> x.province_state)
+                |> Seq.distinct
+                |> Seq.map(fun state ->
+                    let stateData = fileData |> Seq.where(fun x -> x.province_state = state)
+                    {
+                        county = "total"
+                        province_state = state
+                        country_region = (Seq.head stateData).country_region
+                        file_date = (Seq.head stateData).file_date
+                        last_update = (Seq.head stateData).last_update
+                        confirmed = stateData |> Seq.sumBy(fun x -> x.confirmed)
+                        deaths = stateData |> Seq.sumBy(fun x -> x.deaths)
+                        recovered = stateData |> Seq.sumBy(fun x -> x.recovered)
+                    }
+                )
+
+        ])
         |> Seq.toArray
 
     let dataByLocation = [
-        ("New York", data |> Seq.where(fun x -> x.``Province/State`` = "New York"))
-        ("New Jersey", data |> Seq.where(fun x -> x.``Province/State`` = "New Jersey"))
-        ("North Carolina", data |> Seq.where(fun x -> x.``Province/State`` = "North Carolina"))
-        ("Italy", data |> Seq.where(fun x -> x.``Country/Region`` = "Italy"))
-        ("Germany", data |> Seq.where(fun x -> x.``Country/Region`` = "Germany"))
-        ("Spain", data |> Seq.where(fun x -> x.``Country/Region`` = "Spain"))
-        ("Iran", data |> Seq.where(fun x -> x.``Country/Region`` = "Iran"))
-        ("United Kingdom", data |> Seq.where(fun x -> x.``Province/State`` = "United Kingdom"))
-        ("India", data |> Seq.where(fun x -> x.``Country/Region`` = "India"))
-        ("South Korea", data |> Seq.where(fun x -> x.``Country/Region`` = "South Korea" || x.``Country/Region`` = "Korea, South"))
+        ("New York", data |> Seq.where(fun x -> x.province_state = "New York" && x.county = "total"))
+        ("New Jersey", data |> Seq.where(fun x -> x.province_state = "New Jersey" && x.county = "total"))
+        ("North Carolina", data |> Seq.where(fun x -> x.province_state = "North Carolina" && x.county = "total"))
+        ("Italy", data |> Seq.where(fun x -> x.country_region = "Italy"))
+        ("Germany", data |> Seq.where(fun x -> x.country_region = "Germany"))
+        ("Spain", data |> Seq.where(fun x -> x.country_region = "Spain"))
+        ("Iran", data |> Seq.where(fun x -> x.country_region = "Iran"))
+        ("United Kingdom", data |> Seq.where(fun x -> x.province_state = "United Kingdom"))
+        ("India", data |> Seq.where(fun x -> x.country_region = "India"))
+        ("South Korea", data |> Seq.where(fun x -> x.country_region = "South Korea" || x.country_region = "Korea, South"))
     ]
 
     let buildPlot (data: (float * float) seq) =
@@ -87,28 +153,28 @@ let main argv =
             mode = "lines"
         )
 
-    let firstDayPast100 (x: DailyData.Row seq) = x |> Seq.find(fun x -> x.Confirmed > 100) |> (fun x -> x.``Last Update``)
+    let firstDayPast100 (x: DailyData seq) = x |> Seq.find(fun x -> x.confirmed > 100) |> (fun x -> x.last_update)
     
-    let casesSince100DayXY (data: DailyData.Row seq) =
+    let casesSince100DayXY (data: DailyData seq) =
         let dayOf100 = firstDayPast100 data
         data
-        |> Seq.map(fun x -> ((float)(x.``Last Update`` - dayOf100).TotalHours / 24.0, (float)x.Confirmed))
+        |> Seq.map(fun x -> ((float)(x.last_update - dayOf100).TotalHours / 24.0, (float)x.confirmed))
         |> Seq.where(fun (t, _) -> t >= 0.0)
         |> filterNonMonotonic
         |> buildPlot
 
-    let deathsSince100DayXY (data: DailyData.Row seq) =
+    let deathsSince100DayXY (data: DailyData seq) =
         let dayOf100 = firstDayPast100 data
         data
-        |> Seq.map(fun x -> ((float)(x.``Last Update`` - dayOf100).TotalHours / 24.0, (float)x.Deaths))
+        |> Seq.map(fun x -> ((float)(x.last_update - dayOf100).TotalHours / 24.0, (float)x.deaths))
         |> Seq.where(fun (t, _) -> t >= 0.0)
         |> Seq.where(fun (_, x) -> x > 0.0)
         |> filterNonMonotonic
         |> buildPlot
 
-    let deathsVsConfirmedXY (data: DailyData.Row seq) =
+    let deathsVsConfirmedXY (data: DailyData seq) =
         data
-        |> Seq.map(fun x -> ((float)x.Confirmed, (float)x.Deaths))
+        |> Seq.map(fun x -> ((float)x.confirmed, (float)x.deaths))
         |> Seq.where(fun (c, d) -> c > 100.0 && d > 10.0)
         |> buildPlot
 
@@ -143,7 +209,7 @@ let main argv =
         printfn "\n\n%s---------------------------------------" loc
         let casesVsTime =
             data
-            |> Seq.map(fun x -> ((float)(x.``Last Update`` - DateTime.Now).TotalHours / 24.0, (float)x.Confirmed))
+            |> Seq.map(fun x -> ((float)(x.last_update - DateTime.Now).TotalHours / 24.0, (float)x.confirmed))
             |> Seq.where(fun (t, x) -> x > 50.0)
             |> filterNonMonotonic
 
