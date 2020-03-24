@@ -15,7 +15,6 @@ type DailyData =
         county: string
         province_state: string
         country_region: string
-        file_date: DateTime
         last_update: DateTime
         confirmed: int
         deaths: int
@@ -32,18 +31,6 @@ let fitLog1stOrder (data: (float * float) seq) =
     let vec = vector (data |> Seq.map(fun(t, x) -> Math.Log x))
     let res = new Double.DenseVector(Seq.length data)
     [yield! mat.Solve(vec); 0.0]
-        
-
-let filterNonMonotonic (s: (float * 'b) seq) : (float * 'b) list =
-    let maxVals = 
-        [0..Seq.length s - 1]
-        |> Seq.map(fun i -> s |> Seq.take(i+1) |> Seq.map(fun (t, _) -> t) |> Seq.max)
-
-    [
-        for ((t, num), maxSoFar) in Seq.zip s maxVals do
-            if maxSoFar - t < 0.001
-            then yield (t, num)
-    ]
 
 let layoutLog() =
     Layout(
@@ -80,8 +67,7 @@ let main argv =
                     county = "total"
                     province_state = row.``Province/State``
                     country_region = row.``Country/Region``
-                    file_date = DateTime.Parse(Path.GetFileNameWithoutExtension(f))
-                    last_update = row.``Last Update``
+                    last_update = DateTime.Parse(Path.GetFileNameWithoutExtension(f)) + TimeSpan.FromDays(1.0)
                     confirmed = row.Confirmed
                     deaths = row.Deaths
                     recovered = row.Recovered
@@ -93,8 +79,7 @@ let main argv =
                     county = row.Admin2
                     province_state = row.``Province_State``
                     country_region = row.``Country_Region``
-                    file_date = DateTime.Parse(Path.GetFileNameWithoutExtension(f))
-                    last_update = row.``Last_Update``
+                    last_update = DateTime.Parse(Path.GetFileNameWithoutExtension(f)) + TimeSpan.FromDays(1.0)
                     confirmed = row.Confirmed
                     deaths = row.Deaths
                     recovered = row.Recovered
@@ -122,7 +107,6 @@ let main argv =
                         county = "total"
                         province_state = state
                         country_region = (Seq.head stateData).country_region
-                        file_date = (Seq.head stateData).file_date
                         last_update = (Seq.head stateData).last_update
                         confirmed = stateData |> Seq.sumBy(fun x -> x.confirmed)
                         deaths = stateData |> Seq.sumBy(fun x -> x.deaths)
@@ -160,7 +144,6 @@ let main argv =
         data
         |> Seq.map(fun x -> ((float)(x.last_update - dayOf100).TotalHours / 24.0, (float)x.confirmed))
         |> Seq.where(fun (t, _) -> t >= 0.0)
-        |> filterNonMonotonic
         |> buildPlot
 
     let deathsSince100DayXY (data: DailyData seq) =
@@ -169,7 +152,6 @@ let main argv =
         |> Seq.map(fun x -> ((float)(x.last_update - dayOf100).TotalHours / 24.0, (float)x.deaths))
         |> Seq.where(fun (t, _) -> t >= 0.0)
         |> Seq.where(fun (_, x) -> x > 0.0)
-        |> filterNonMonotonic
         |> buildPlot
 
     let deathsVsConfirmedXY (data: DailyData seq) =
@@ -211,7 +193,7 @@ let main argv =
             data
             |> Seq.map(fun x -> ((float)(x.last_update - DateTime.Now).TotalHours / 24.0, (float)x.confirmed))
             |> Seq.where(fun (t, x) -> x > 50.0)
-            |> filterNonMonotonic
+            |> Seq.toList
 
         let casesToFit =
             [
