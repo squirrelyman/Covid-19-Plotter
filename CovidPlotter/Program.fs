@@ -190,41 +190,62 @@ let main argv =
         |> Chart.WithYTitle("Deaths")
     ] |> Chart.ShowAll
 
-    dataByLocation
-    |> Seq.map(fun (loc, data) ->
+    let analyzeAndPlotLocationDataVsTime (inputData: (float * float) List) loc propertyName =
+        //include nth point n times to bias fit to match more recent data
+        let casesToFit = inputData |> List.mapi(fun i x -> List.replicate(i) x) |> List.concat
+
+        let fit = fitLog2ndOrderConcaveDown casesToFit        
+        let dailyGrowth = Math.Exp fit.[1] - 1.0
+        let tDouble = Math.Log(2.0) / fit.[1]
+
+        printfn "\n\n%s %s---------------------------------------" loc propertyName
+        printfn "y = e^((%f)t^2 + (%f)t + %f)" fit.[2] fit.[1] fit.[0]
+        printfn "Daily Growth: %f%% (doubles every %f days)" (dailyGrowth * 100.0) tDouble
+
+        let earliestInSeries = inputData |> Seq.map(fun (t, _) -> t) |> Seq.min
+        let predictedData = [int earliestInSeries-1..7] |> List.map(float) |> List.map(fun t ->
+            (t, Math.Exp(fit.[2] * t * t + fit.[1] * t + fit.[0]))
+        )
+
+        [inputData; predictedData]
+        |> Seq.map(buildPlot)
+        |> Chart.Plot
+        |> Chart.WithLabels(["Actual"; "Fit"])
+        |> Chart.WithOptions(layoutLog())
+        |> Chart.WithYTitle(propertyName)
+        |> Chart.WithXTitle("Time from present (days)")
+        |> Chart.WithTitle(loc)
+
+    dataByLocation |> Seq.map(fun (loc, data) ->
         let casesVsTime =
             data
             |> Seq.map(fun x -> ((float)(x.last_update - DateTime.Now).TotalHours / 24.0, (float)x.confirmed))
             |> Seq.where(fun (t, x) -> x > 50.0)
             |> Seq.toList
 
-        //include nth point n times to bias fit to match more recent data
-        let casesToFit = casesVsTime |> List.mapi(fun i x -> List.replicate(i) x) |> List.concat
+        analyzeAndPlotLocationDataVsTime casesVsTime loc "Confirmed Cases"
+    ) |> Chart.ShowAll
 
-        let casesFit = fitLog2ndOrderConcaveDown casesToFit        
-        let predictedCases = Math.Exp casesFit.[0]
-        let actualCases = casesVsTime |> Seq.map(fun (t, x) -> x) |> Seq.max
-        let dailyGrowth = Math.Exp casesFit.[1] - 1.0
-        let tDouble = Math.Log(2.0) / casesFit.[1]
+    dataByLocation |> Seq.map(fun (loc, data) ->
+        let casesVsTime =
+            data
+            |> Seq.map(fun x -> ((float)(x.last_update - DateTime.Now).TotalHours / 24.0, float x.confirmed - float x.recovered - float x.deaths))
+            |> Seq.where(fun (t, x) -> x > 50.0)
+            |> Seq.toList
 
-        printfn "\n\n%s---------------------------------------" loc
-        printfn "Cases = e^((%f)t^2 + (%f)t + %f)" casesFit.[2] casesFit.[1] casesFit.[0]
-        printfn "Daily Growth: %f%% (doubles every %f days)" (dailyGrowth * 100.0) tDouble
-        printfn "Current Predicted: %f Actual: %f" predictedCases actualCases
+        analyzeAndPlotLocationDataVsTime casesVsTime loc "Active Cases"
+    ) |> Chart.ShowAll
 
-        let earliestInSeries = casesVsTime |> Seq.map(fun (t, _) -> t) |> Seq.min
-        let predictedCasesVsTime = [int earliestInSeries-1..7] |> List.map(float) |> List.map(fun t ->
-            (t, Math.Exp(casesFit.[2] * t * t + casesFit.[1] * t + casesFit.[0]))
-        )
+    dataByLocation
+    |> Seq.where(fun (_, x) -> x |> Seq.where(fun row -> row.deaths > 5) |> Seq.length > 2)
+    |> Seq.map(fun (loc, data) ->
+        let casesVsTime =
+            data
+            |> Seq.map(fun x -> ((float)(x.last_update - DateTime.Now).TotalHours / 24.0, float x.deaths))
+            |> Seq.where(fun (t, x) -> x > 5.0)
+            |> Seq.toList
 
-        [casesVsTime; predictedCasesVsTime]
-        |> Seq.map(buildPlot)
-        |> Chart.Plot
-        |> Chart.WithLabels(["Actual"; "Fit"])
-        |> Chart.WithOptions(layoutLog())
-        |> Chart.WithYTitle("Confirmed Cases")
-        |> Chart.WithXTitle("time from present (days)")
-        |> Chart.WithTitle(loc)
+        analyzeAndPlotLocationDataVsTime casesVsTime loc "Deaths"
     ) |> Chart.ShowAll
 
     0 // return an integer exit code
