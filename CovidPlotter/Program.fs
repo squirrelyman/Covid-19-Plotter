@@ -195,43 +195,30 @@ let main argv =
             |> Seq.where(fun (t, x) -> x > 50.0)
             |> Seq.toList
 
-        let casesToFit =
-            [
-                yield! casesVsTime
-                yield! casesVsTime |> List.rev |> List.take(3)
-                yield! casesVsTime |> List.rev |> List.take(2)
-                yield! casesVsTime |> List.rev |> List.take(1)
-                yield! casesVsTime |> List.rev |> List.take(3)
-                yield! casesVsTime |> List.rev |> List.take(2)
-                yield! casesVsTime |> List.rev |> List.take(1)
-                yield! casesVsTime |> List.rev |> List.take(3)
-                yield! casesVsTime |> List.rev |> List.take(2)
-                yield! casesVsTime |> List.rev |> List.take(1)
-            ]
-        let casesFit = casesToFit |> fitLog2ndOrder
+        //include nth point n times to bias fit to match more recent data
+        let casesToFit = casesVsTime |> List.mapi(fun i x -> List.replicate(i) x) |> List.concat
+
         let casesFit =
-            if casesFit.[2] < 0.0
-            then casesFit
-            else casesToFit |> fitLog1stOrder
+            match casesToFit |> fitLog2ndOrder with
+            | [_; _; x] when x > 0.0 ->  casesToFit |> fitLog1stOrder
+            | x -> x
 
         printfn "Cases = e^((%f)t^2 + (%f)t + %f)" casesFit.[2] casesFit.[1] casesFit.[0]
 
         let predictedCases = Math.Exp casesFit.[0]
         let actualCases = casesVsTime |> Seq.map(fun (t, x) -> x) |> Seq.max
         printfn "Current Predicted: %f Actual: %f" predictedCases actualCases
+
         let dailyGrowth = Math.Exp casesFit.[1] - 1.0
         let tDouble = Math.Log(2.0) / casesFit.[1]
         printfn "Daily Growth: %f%% (doubles every %f days)" (dailyGrowth * 100.0) tDouble
 
         let earliestInSeries = casesVsTime |> Seq.map(fun (t, _) -> t) |> Seq.min
-        [
-            casesVsTime;
-            [int earliestInSeries-1..7] |> List.map(float) |> List.map(fun t ->
-                (
-                    t,
-                    Math.Exp(casesFit.[2] * t * t + casesFit.[1] * t + casesFit.[0])
-            ))
-        ]
+        let predictedCasesVsTime = [int earliestInSeries-1..7] |> List.map(float) |> List.map(fun t ->
+            (t, Math.Exp(casesFit.[2] * t * t + casesFit.[1] * t + casesFit.[0]))
+        )
+
+        [casesVsTime; predictedCasesVsTime]
         |> Seq.map(buildPlot)
         |> Chart.Plot
         |> Chart.WithLabels(["Actual"; "Fit"])
