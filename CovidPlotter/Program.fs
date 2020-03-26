@@ -8,7 +8,7 @@ open MathNet.Numerics.LinearAlgebra.Solvers
 let dataDir = "../../../../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/"
 
 type CsvDailyData1 = CsvProvider<"../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/02-01-2020.csv">
-type CsvDailyData2 = CsvProvider<"../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/03-23-2020.csv">
+type CsvDailyData2 = CsvProvider<"../COVID-19/csse_covid_19_data/csse_covid_19_daily_reports/03-22-2020.csv">
 
 type DailyData =
     {
@@ -59,8 +59,8 @@ let layoutLogLog() =
 let main argv =
     let mapFileData (f: string) : DailyData seq =
         match DateTime.Parse(Path.GetFileNameWithoutExtension(f)) with
-        | dt when dt < DateTime.Parse("02-01-2020") -> Seq.empty
-        | dt when dt < DateTime.Parse("03-23-2020") ->
+        | dt when dt < DateTime.Parse("06:00:00 02-01-2020") -> Seq.empty
+        | dt when dt < DateTime.Parse("06:00:00 03-21-2020") ->
             (CsvDailyData1.Load f).Rows
             |> Seq.map(fun row ->
                 {
@@ -125,7 +125,7 @@ let main argv =
         ("Germany", data |> Seq.where(fun x -> x.country_region = "Germany"))
         ("Spain", data |> Seq.where(fun x -> x.country_region = "Spain"))
         ("Iran", data |> Seq.where(fun x -> x.country_region = "Iran"))
-        ("United Kingdom", data |> Seq.where(fun x -> x.province_state = "United Kingdom"))
+        ("United Kingdom", data |> Seq.where(fun x -> (x.province_state = "United Kingdom" || x.province_state = "") && x.country_region = "United Kingdom"))
         ("India", data |> Seq.where(fun x -> x.country_region = "India"))
         ("South Korea", data |> Seq.where(fun x -> x.country_region = "South Korea" || x.country_region = "Korea, South"))
     ]
