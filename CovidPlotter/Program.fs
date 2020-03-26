@@ -90,6 +90,23 @@ let main argv =
                     recovered = row.Recovered
                 })
 
+    let combineCountyData fileData =
+        fileData
+        |> Seq.where(fun x -> x.province_state <> "")
+        |> Seq.map(fun x -> x.province_state)
+        |> Seq.distinct
+        |> Seq.map(fun state ->
+            let stateData = fileData |> Seq.where(fun x -> x.province_state = state)
+            {
+                county = "total"
+                province_state = state
+                country_region = (Seq.head stateData).country_region
+                last_update = (Seq.head stateData).last_update
+                confirmed = stateData |> Seq.sumBy(fun x -> x.confirmed)
+                deaths = stateData |> Seq.sumBy(fun x -> x.deaths)
+                recovered = stateData |> Seq.sumBy(fun x -> x.recovered)
+            }
+        )
 
     let data = 
         Directory.EnumerateFiles(dataDir)
@@ -98,27 +115,9 @@ let main argv =
             printfn "%A" x
             x)
         |> Seq.map(mapFileData)
-        |> Seq.collect(fun fileData ->
-        [
+        |> Seq.collect(fun fileData -> [
             yield! fileData
-            yield!
-                fileData
-                |> Seq.where(fun x -> x.province_state <> "")
-                |> Seq.map(fun x -> x.province_state)
-                |> Seq.distinct
-                |> Seq.map(fun state ->
-                    let stateData = fileData |> Seq.where(fun x -> x.province_state = state)
-                    {
-                        county = "total"
-                        province_state = state
-                        country_region = (Seq.head stateData).country_region
-                        last_update = (Seq.head stateData).last_update
-                        confirmed = stateData |> Seq.sumBy(fun x -> x.confirmed)
-                        deaths = stateData |> Seq.sumBy(fun x -> x.deaths)
-                        recovered = stateData |> Seq.sumBy(fun x -> x.recovered)
-                    }
-                )
-
+            yield! combineCountyData fileData
         ])
         |> Seq.toArray
 
