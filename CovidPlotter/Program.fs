@@ -192,7 +192,7 @@ let main argv =
 
     let analyzeAndPlotLocationDataVsTime (inputData: (float * float) List) loc propertyName =
         //include nth point n times to bias fit to match more recent data
-        let casesToFit = inputData |> List.mapi(fun i x -> List.replicate(i) x) |> List.concat
+        let casesToFit = inputData |> List.mapi(fun i x -> List.replicate(i+1) x) |> List.concat
 
         let fit = fitLog2ndOrderConcaveDown casesToFit        
         let dailyGrowth = Math.Exp fit.[1] - 1.0
@@ -237,7 +237,7 @@ let main argv =
     ) |> Chart.ShowAll
 
     dataByLocation
-    |> Seq.where(fun (_, x) -> x |> Seq.where(fun row -> row.deaths > 5) |> Seq.length > 2)
+    |> Seq.where(fun (_, x) -> x |> Seq.where(fun row -> row.deaths > 5) |> Seq.length > 4)
     |> Seq.map(fun (loc, data) ->
         let casesVsTime =
             data
