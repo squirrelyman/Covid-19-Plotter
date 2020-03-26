@@ -32,6 +32,11 @@ let fitLog1stOrder (data: (float * float) seq) =
     let res = new Double.DenseVector(Seq.length data)
     [yield! mat.Solve(vec); 0.0]
 
+let fitLog2ndOrderConcaveDown data =
+    match data |> fitLog2ndOrder with
+    | [_; _; x] when x > 0.0 ->  data |> fitLog1stOrder
+    | x -> x
+
 let layoutLog() =
     Layout(
         yaxis =
@@ -188,7 +193,6 @@ let main argv =
 
     dataByLocation
     |> Seq.map(fun (loc, data) ->
-        printfn "\n\n%s---------------------------------------" loc
         let casesVsTime =
             data
             |> Seq.map(fun x -> ((float)(x.last_update - DateTime.Now).TotalHours / 24.0, (float)x.confirmed))
@@ -198,20 +202,16 @@ let main argv =
         //include nth point n times to bias fit to match more recent data
         let casesToFit = casesVsTime |> List.mapi(fun i x -> List.replicate(i) x) |> List.concat
 
-        let casesFit =
-            match casesToFit |> fitLog2ndOrder with
-            | [_; _; x] when x > 0.0 ->  casesToFit |> fitLog1stOrder
-            | x -> x
-
-        printfn "Cases = e^((%f)t^2 + (%f)t + %f)" casesFit.[2] casesFit.[1] casesFit.[0]
-
+        let casesFit = fitLog2ndOrderConcaveDown casesToFit        
         let predictedCases = Math.Exp casesFit.[0]
         let actualCases = casesVsTime |> Seq.map(fun (t, x) -> x) |> Seq.max
-        printfn "Current Predicted: %f Actual: %f" predictedCases actualCases
-
         let dailyGrowth = Math.Exp casesFit.[1] - 1.0
         let tDouble = Math.Log(2.0) / casesFit.[1]
+
+        printfn "\n\n%s---------------------------------------" loc
+        printfn "Cases = e^((%f)t^2 + (%f)t + %f)" casesFit.[2] casesFit.[1] casesFit.[0]
         printfn "Daily Growth: %f%% (doubles every %f days)" (dailyGrowth * 100.0) tDouble
+        printfn "Current Predicted: %f Actual: %f" predictedCases actualCases
 
         let earliestInSeries = casesVsTime |> Seq.map(fun (t, _) -> t) |> Seq.min
         let predictedCasesVsTime = [int earliestInSeries-1..7] |> List.map(float) |> List.map(fun t ->
